@@ -3,7 +3,7 @@ import time
 import httpx
 from typing import List, Dict, Tuple, Optional, Any
 from sqlalchemy.orm import Session
-from backend.models import AIUsageLog
+from app.models import AIUsageLog
 from dotenv import load_dotenv
 
 load_dotenv()

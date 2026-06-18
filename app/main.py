@@ -6,8 +6,8 @@ import time
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 
-# If running from the backend/ folder directly, add the project root to sys.path
-# so absolute imports like "from backend.database import ..." resolve correctly.
+# If running from the app/ folder directly, add the project root to sys.path
+# so absolute imports like "from app.database import ..." resolve correctly.
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
@@ -20,17 +20,17 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 import httpx
 
-from backend.database import engine, Base, get_db
-from backend.models import User, ChatSession, ChatMessage, AIUsageLog, ImageGeneration, UserSettings
-from backend.schemas import (
+from app.database import engine, Base, get_db
+from app.models import User, ChatSession, ChatMessage, AIUsageLog, ImageGeneration, UserSettings
+from app.schemas import (
     UserRegister, UserLogin, UserOut, Token,
     ChatSessionCreate, ChatSessionOut, ChatMessageCreate, ChatMessageOut, ChatMessagePostRequest, ChatResponse,
     ImageGenerateRequest, ImageGenerationOut,
     AIUsageLogOut, UsageSummaryOut,
     UserSettingsOut, UserSettingsUpdate
 )
-from backend.auth import get_password_hash, verify_password, create_access_token, get_current_user
-from backend.router_ai import ask_ai, API_KEYS, DEFAULT_MODELS
+from app.auth import get_password_hash, verify_password, create_access_token, get_current_user
+from app.router_ai import ask_ai, API_KEYS, DEFAULT_MODELS
 
 # Automatically create database tables
 Base.metadata.create_all(bind=engine)
@@ -54,7 +54,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.get("/")
 def root():
-    return {"message": "ChatBot Backend is running"}
+    return {"message": "Backend is running"}
 
 @app.get("/health")
 def health():

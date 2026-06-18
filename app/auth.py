@@ -8,13 +8,15 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 
-from backend.database import get_db
-from backend.models import User
+from app.database import get_db
+from app.models import User
 
 load_dotenv()
 
 # JWT Config
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "70b345b14f85e3cb98bcad19bc4ad2327cefe70a8d38bfcb6a382e75e927cb04")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 

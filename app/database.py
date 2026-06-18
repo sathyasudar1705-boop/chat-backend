@@ -6,10 +6,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://neondb_owner:npg_oFTP62EDtbOJ@ep-curly-dust-at2yvj6c.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is not set")
 
 # Connect to DB. Neon requires sslmode=require which is already in the URL
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
