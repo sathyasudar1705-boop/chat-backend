@@ -45,12 +45,12 @@ export default function Login() {
 
         <div className="flex items-center gap-2.5 relative z-10 cursor-pointer" onClick={() => navigate('/')}>
           <img src="/logo.png" className="w-9 h-9 rounded-xl object-cover" alt="Logo" />
-          <span className="font-bold text-lg tracking-tight">Indya AI</span>
+          <span className="font-bold text-lg tracking-tight">Whale</span>
         </div>
         
         <div className="relative z-10">
           <span className="text-[10px] font-bold tracking-widest uppercase text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full">
-            Indya AI Platform
+            Whale Platform
           </span>
           <blockquote className="text-xl font-bold leading-tight mt-4 mb-3">
             One interface.<br/>Multiple AI engines.<br/>Zero friction.
@@ -77,7 +77,7 @@ export default function Login() {
         {/* Mobile logo */}
         <div className="flex lg:hidden items-center gap-2.5 mb-8 cursor-pointer" onClick={() => navigate('/')}>
           <img src="/logo.png" className="w-9 h-9 rounded-xl object-cover shadow-saas-sm" alt="Logo" />
-          <span className="font-bold text-lg text-text-primary tracking-tight">Indya AI</span>
+          <span className="font-bold text-lg text-text-primary tracking-tight">Whale</span>
         </div>
 
         <div className="w-full max-w-md bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-3xl shadow-saas-xl p-8 sm:p-10">

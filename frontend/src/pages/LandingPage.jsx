@@ -21,8 +21,8 @@ export default function LandingPage() {
         {/* Navbar */}
         <header className="px-8 py-6 flex items-center justify-between border-b border-slate-50">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-            <img src="/logo.png" className="w-9 h-9 rounded-xl object-cover" alt="Indya AI Logo" />
-            <span className="font-extrabold text-lg text-[#0F34C2] tracking-tight">Indya AI</span>
+            <img src="/logo.png" className="w-9 h-9 rounded-xl object-cover" alt="Whale Logo" />
+            <span className="font-extrabold text-lg text-[#0F34C2] tracking-tight">Whale</span>
           </div>
 
           <div className="flex items-center gap-3">

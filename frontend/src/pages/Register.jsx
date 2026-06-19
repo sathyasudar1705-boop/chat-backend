@@ -61,7 +61,7 @@ export default function Register() {
 
         <div className="flex items-center gap-2.5 relative z-10 cursor-pointer" onClick={() => navigate('/')}>
           <img src="/logo.png" className="w-9 h-9 rounded-xl object-cover" alt="Logo" />
-          <span className="font-bold text-lg tracking-tight">Indya AI</span>
+          <span className="font-bold text-lg tracking-tight">Whale</span>
         </div>
         
         <div className="relative z-10">
@@ -78,7 +78,7 @@ export default function Register() {
             ))}
           </ul>
         </div>
-        <p className="text-slate-300 text-xs relative z-10">Join thousands of users chatting smarter with Indya AI.</p>
+        <p className="text-slate-300 text-xs relative z-10">Join thousands of users chatting smarter with Whale.</p>
       </div>
 
       {/* Form */}
@@ -90,7 +90,7 @@ export default function Register() {
         {/* Mobile logo */}
         <div className="flex lg:hidden items-center gap-2.5 mb-8 cursor-pointer" onClick={() => navigate('/')}>
           <img src="/logo.png" className="w-9 h-9 rounded-xl object-cover shadow-saas-sm" alt="Logo" />
-          <span className="font-bold text-lg text-text-primary tracking-tight">Indya AI</span>
+          <span className="font-bold text-lg text-text-primary tracking-tight">Whale</span>
         </div>
 
         <div className="w-full max-w-md bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-3xl shadow-saas-xl p-8 sm:p-10">

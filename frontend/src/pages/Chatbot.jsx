@@ -645,7 +645,7 @@ export default function Chatbot({ user }) {
         <div className="p-4 border-b border-white/10">
           <div className="flex items-center gap-2 mb-4">
             <img src="/logo.png" className="w-8 h-8 rounded-lg object-cover bg-white" alt="Logo" />
-            <span className="font-bold text-sm text-white">Indya AI</span>
+            <span className="font-bold text-sm text-white">Whale</span>
           </div>
           <button
             onClick={handleNewChat}
@@ -726,7 +726,7 @@ export default function Chatbot({ user }) {
             </button>
             <div className="hidden sm:flex items-center gap-2">
               <img src="/logo.png" className="w-7 h-7 rounded-lg object-cover bg-white shadow-sm" alt="Logo" />
-              <span className="font-semibold text-sm text-text-primary">Indya AI</span>
+              <span className="font-semibold text-sm text-text-primary">Whale</span>
             </div>
             <span className="text-text-muted text-sm hidden sm:block">/</span>
             <h1 className="text-sm font-semibold text-text-primary truncate max-w-[80px] sm:max-w-[150px] lg:max-w-xs">
