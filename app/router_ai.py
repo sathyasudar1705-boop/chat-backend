@@ -557,24 +557,7 @@ async def ask_ai(message: str, user_id: int, provider: str = "auto", model: str 
             fallback_occurred = True
             continue
             
-        # Verify API key format for Gemini
-        if current_prov == "gemini":
-            if not (api_key.startswith("AIzaSy") and len(api_key) == 39) and not (api_key.startswith("AQ") and len(api_key) >= 100):
-                err_msg = "Invalid Gemini API key format"
-                print(f"[ERROR] Provider: {current_prov}, Model: {current_model}, StatusCode: 400, Message: {err_msg}, RequestType: chat")
-                failed_providers.append(current_prov)
-                save_usage_log(
-                    db=db,
-                    user_id=user_id,
-                    provider=current_prov,
-                    model=current_model,
-                    status="error",
-                    response_time_ms=0,
-                    fallback_used=fallback_occurred,
-                    error_message=err_msg
-                )
-                raise HTTPException(status_code=400, detail=err_msg)
-            
+        # Execute request
         start_time = time.time()
         try:
             # Execute request
