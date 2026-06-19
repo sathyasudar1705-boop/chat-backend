@@ -7,6 +7,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { showToast } from '../components/ProtectedRoute';
+import { API_BASE } from '../config';
 
 /* ─────────────── TYPING INDICATOR ─────────────── */
 const TypingIndicator = ({ isImage }) => (
@@ -382,18 +383,18 @@ export default function Chatbot({ user }) {
     const init = async () => {
       setLoading(true);
       try {
-        const modelsRes = await fetch('/api/models', { headers: { Authorization: `Bearer ${token}` } });
+        const modelsRes = await fetch(`${API_BASE}/api/models`, { headers: { Authorization: `Bearer ${token}` } });
         if (modelsRes.ok) {
           const fetchedData = await modelsRes.json();
           setModelsData(fetchedData);
         }
-        const settingsRes = await fetch('/api/settings', { headers: { Authorization: `Bearer ${token}` } });
+        const settingsRes = await fetch(`${API_BASE}/api/settings`, { headers: { Authorization: `Bearer ${token}` } });
         if (settingsRes.ok) {
           const s = await settingsRes.json();
           if (s.default_provider) setProvider(s.default_provider);
           if (s.default_model)    setModel(s.default_model);
         }
-        const sessRes = await fetch('/api/chat/sessions', { headers: { Authorization: `Bearer ${token}` } });
+        const sessRes = await fetch(`${API_BASE}/api/chat/sessions`, { headers: { Authorization: `Bearer ${token}` } });
         if (sessRes.ok) {
           const data = await sessRes.json();
           setSessions(data);
@@ -416,7 +417,7 @@ export default function Chatbot({ user }) {
     const fetchMsgs = async () => {
       setError('');
       try {
-        const res = await fetch(`/api/chat/sessions/${activeSessionId}/messages`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(`${API_BASE}/api/chat/sessions/${activeSessionId}/messages`, { headers: { Authorization: `Bearer ${token}` } });
         if (res.ok) {
           const data = await res.json();
           setMessages(data);
@@ -429,7 +430,7 @@ export default function Chatbot({ user }) {
 
   /* ── SESSION HELPERS ── */
   const createSession = async () => {
-    const res = await fetch('/api/chat/sessions', {
+    const res = await fetch(`${API_BASE}/api/chat/sessions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'New Chat' }),
@@ -447,7 +448,7 @@ export default function Chatbot({ user }) {
   const handleDeleteSession = async (e, id) => {
     e.stopPropagation();
     try {
-      const res = await fetch(`/api/chat/sessions/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API_BASE}/api/chat/sessions/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const remaining = sessions.filter(s => s.id !== id);
         setSessions(remaining);
@@ -485,7 +486,7 @@ export default function Chatbot({ user }) {
 
       try {
         // 1. Save user prompt message to database
-        const userMsgRes = await fetch(`/api/chat/sessions/${activeSessionId}/messages`, {
+        const userMsgRes = await fetch(`${API_BASE}/api/chat/sessions/${activeSessionId}/messages`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ role: 'user', content: `Generate image: ${text}`, provider, model }),
@@ -493,7 +494,7 @@ export default function Chatbot({ user }) {
         const savedUserMsg = userMsgRes.ok ? await userMsgRes.json() : tempMsg;
 
         // 2. Call backend image generation API
-        const genRes = await fetch('/api/image/generate', {
+        const genRes = await fetch(`${API_BASE}/api/image/generate`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: text, provider, model }),
@@ -505,7 +506,7 @@ export default function Chatbot({ user }) {
         const imgMarkdown = `Here is the generated image for **"${text}"**:\n\n![Generated Image](${genData.image_url_or_path})`;
 
         // 4. Save assistant image message to database
-        const aiMsgRes = await fetch(`/api/chat/sessions/${activeSessionId}/messages`, {
+        const aiMsgRes = await fetch(`${API_BASE}/api/chat/sessions/${activeSessionId}/messages`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ role: 'assistant', content: imgMarkdown, provider, model }),
@@ -550,7 +551,7 @@ export default function Chatbot({ user }) {
       setMessages(prev => [...prev, tempMsg]);
 
       try {
-        const res  = await fetch('/api/chat/message', {
+        const res  = await fetch(`${API_BASE}/api/chat/message`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_id: activeSessionId, content: text, provider, model }),

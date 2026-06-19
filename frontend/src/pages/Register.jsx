@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { User, Mail, Lock, Loader, AlertCircle, MessageSquare, ArrowRight } from 'lucide-react';
+import { API_BASE } from '../config';
 
 export default function Register() {
   const [name, setName]                       = useState('');
@@ -16,14 +17,14 @@ export default function Register() {
     if (password !== confirmPassword) { setError('Passwords do not match.'); return; }
     setLoading(true); setError('');
     try {
-      const regRes  = await fetch('/api/auth/register', {
+      const regRes  = await fetch(`${API_BASE}/api/auth/register`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password }),
       });
       const regData = await regRes.json();
       if (!regRes.ok) throw new Error(regData.detail || 'Failed to create account.');
 
-      const loginRes  = await fetch('/api/auth/login', {
+      const loginRes  = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });

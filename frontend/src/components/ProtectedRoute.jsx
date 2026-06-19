@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { Loader, CheckCircle2, AlertTriangle, XCircle, Info, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { API_BASE } from '../config';
 
 // Simple global toast trigger
 let toastTrigger = null;
@@ -44,7 +45,7 @@ export default function ProtectedRoute({ children, theme, toggleTheme }) {
 
     const fetchUser = async () => {
       try {
-        const response = await fetch('/api/auth/me', {
+        const response = await fetch(`${API_BASE}/api/auth/me`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
