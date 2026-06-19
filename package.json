@@ -5,7 +5,8 @@
   "description": "Enterprise-grade multi-provider AI chatbot platform with strict database isolation",
   "scripts": {
     "install:frontend": "npm --prefix frontend install",
-    "dev:frontend": "npm --prefix frontend run dev"
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend install && npm --prefix frontend run build"
   },
   "dependencies": {
     "concurrently": "^8.2.2"
