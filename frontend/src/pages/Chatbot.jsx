@@ -12,21 +12,37 @@ import { API_BASE } from '../config';
 /* ─────────────── TYPING INDICATOR ─────────────── */
 const TypingIndicator = ({ isImage }) => (
   <div className="flex items-start gap-3 bubble-enter">
-    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center shrink-0 shadow-saas-sm">
-      <Bot className="w-3.5 h-3.5 text-white" />
+    <div className="w-8 h-8 rounded-full bg-white border border-slate-100 flex items-center justify-center shrink-0 mb-1 shadow-saas-sm overflow-hidden p-0.5">
+      <img src="/logo.png" className="w-full h-full object-contain" alt="AI Avatar" />
     </div>
-    <div className="bg-white border border-border-light rounded-2xl rounded-tl-sm px-4 py-3 shadow-saas-sm">
-      <div className="flex items-center gap-2 mb-1.5">
-        <div className="flex gap-1">
-          <span className="w-2 h-2 rounded-full bg-primary dot-1 inline-block" />
-          <span className="w-2 h-2 rounded-full bg-blue-400 dot-2 inline-block" />
-          <span className="w-2 h-2 rounded-full bg-primary dot-3 inline-block" />
+    <div className="flex items-center gap-3 bg-white border border-border-light rounded-2xl rounded-tl-sm px-4 py-3 shadow-saas-sm select-none">
+      {/* Cute spouting whale */}
+      <div className="relative w-12 h-10 flex items-center justify-center shrink-0">
+        {/* Water spout bubbles */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 flex gap-1 h-3">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-300 spout-bubble-1" />
+          <span className="w-2 h-2 rounded-full bg-blue-400 spout-bubble-2" />
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-300 spout-bubble-3" />
         </div>
-        <span className="text-xs text-text-muted font-medium">
-          {isImage ? 'Generating image...' : 'Thinking...'}
-        </span>
+        {/* Whale body */}
+        <svg className="w-10 h-7 text-blue-500 animate-bounce-gentle mt-2" viewBox="0 0 100 60" fill="currentColor">
+          <path d="M10,35 C10,15 45,10 75,22 C90,28 95,20 95,15 C95,25 90,32 82,35 C88,40 92,45 92,50 C80,48 75,42 70,38 C55,42 25,45 10,35 Z" />
+          <circle cx="28" cy="24" r="3" fill="white" />
+          <circle cx="28" cy="24" r="1.5" fill="black" />
+          <ellipse cx="33" cy="28" rx="4" ry="2.5" fill="#FFAEC9" opacity="0.8" />
+          <path d="M45,36 C42,42 46,47 50,44 C48,40 46,37 45,36 Z" fill="#3B82F6" />
+        </svg>
       </div>
-      <div className="h-1.5 rounded-full shimmer-bg w-32" />
+      {/* Text state */}
+      <div className="flex flex-col gap-0.5">
+        <span className="text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent animate-pulse-slow">
+          {isImage ? 'Spouting creative ideas...' : 'Whale, let me think...'}
+        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
+          <span className="text-[10px] text-slate-400 font-medium">Processing request</span>
+        </div>
+      </div>
     </div>
   </div>
 );
@@ -79,8 +95,8 @@ function ChatMessage({ msg, user, onCopy, copiedId }) {
 
       {/* AI avatar */}
       {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center shrink-0 mb-1 shadow-saas-sm">
-          <Bot className="w-3.5 h-3.5 text-white" />
+        <div className="w-8 h-8 rounded-full bg-white border border-slate-100 flex items-center justify-center shrink-0 mb-1 shadow-saas-sm overflow-hidden p-0.5">
+          <img src="/logo.png" className="w-full h-full object-contain" alt="AI Avatar" />
         </div>
       )}
 

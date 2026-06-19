@@ -173,3 +173,53 @@ body {
 .chatbot-textarea {
   color: #1F2937 !important;
 }
+
+/* Cute Whale Thinking Animations */
+.spout-bubble-1 {
+  animation: spoutUp 1.2s 0s infinite ease-out;
+}
+.spout-bubble-2 {
+  animation: spoutUp 1.2s 0.3s infinite ease-out;
+}
+.spout-bubble-3 {
+  animation: spoutUp 1.2s 0.6s infinite ease-out;
+}
+
+@keyframes spoutUp {
+  0% {
+    transform: translateY(12px) scale(0.3);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-4px) scale(1);
+  }
+  100% {
+    transform: translateY(-16px) scale(0.4);
+    opacity: 0;
+  }
+}
+
+.animate-bounce-gentle {
+  animation: bounceGentle 2s infinite ease-in-out;
+}
+@keyframes bounceGentle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulseSlow 2.5s infinite ease-in-out;
+}
+@keyframes pulseSlow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
