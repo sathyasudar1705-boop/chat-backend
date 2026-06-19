@@ -204,6 +204,19 @@ def delete_session(session_id: int, current_user: User = Depends(get_current_use
 
 @app.post("/api/chat/message", response_model=ChatResponse)
 async def post_message(req: ChatMessagePostRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Request validation before calling AI
+    if not req.content or not req.content.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+        
+    prov_lower = req.provider.lower()
+    if prov_lower != "auto":
+        from app.router_ai import SUPPORTED_MODELS
+        if prov_lower not in SUPPORTED_MODELS:
+            raise HTTPException(status_code=400, detail="This model is not available for the selected provider.")
+        
+        if req.model != "auto" and req.model not in SUPPORTED_MODELS[prov_lower]:
+            raise HTTPException(status_code=400, detail="This model is not available for the selected provider.")
+
     # Security: Verify session belongs to current_user
     session = db.query(ChatSession).filter(ChatSession.id == req.session_id, ChatSession.user_id == current_user.id).first()
     if not session:
@@ -291,12 +304,9 @@ async def post_message(req: ChatMessagePostRequest, current_user: User = Depends
 
 @app.get("/api/models")
 def get_models(current_user: User = Depends(get_current_user)):
-    # Standard lists
+    # Standard lists (only active/working models to disable others)
     return {
-        "gemini": ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
         "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"],
-        "openrouter": ["meta-llama/llama-3.1-8b-instruct:free", "google/gemma-2-9b-it:free", "mistralai/mistral-7b-instruct:free"],
-        "cerebras": ["llama3.1-8b", "llama3.1-70b"],
         "mistral": ["open-mixtral-8x7b", "mistral-tiny", "mistral-small-latest"],
         "pollinations": ["flux", "default"]
     }

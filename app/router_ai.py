@@ -35,18 +35,15 @@ DEFAULT_MODELS = {
     "mistral": "open-mixtral-8x7b",
 }
 
-# Supported Models Config for Validation
+# Supported Models Config for Validation (disabling non-working providers)
 SUPPORTED_MODELS = {
-    "gemini": ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
     "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"],
-    "openrouter": ["meta-llama/llama-3.1-8b-instruct:free", "google/gemma-2-9b-it:free", "mistralai/mistral-7b-instruct:free"],
-    "cerebras": ["llama3.1-8b", "llama3.1-70b"],
     "mistral": ["open-mixtral-8x7b", "mistral-tiny", "mistral-small-latest"],
     "pollinations": ["flux", "default"]
 }
 
-# Priority Chain (Mistral as temporary default provider)
-PRIORITY_CHAIN = ["mistral", "gemini", "groq", "openrouter", "cerebras"]
+# Priority Chain (Groq & Mistral only)
+PRIORITY_CHAIN = ["groq", "mistral"]
 
 SYSTEM_PROMPT = (
     "You are a secure personal AI assistant. You must answer only using the logged-in user's own data "
@@ -134,7 +131,8 @@ async def call_openai_compatible(provider: str, model: str, message: str, chat_h
     
     payload = {
         "model": model,
-        "messages": messages
+        "messages": messages,
+        "temperature": 0.7
     }
     
     async with httpx.AsyncClient() as client:
@@ -142,8 +140,10 @@ async def call_openai_compatible(provider: str, model: str, message: str, chat_h
         
         # Check non-retryable status codes
         if response.status_code in [401, 403]:
+            print(f"Auth error ({response.status_code}) from {provider}: {response.text}")
             raise httpx.HTTPStatusError("Invalid API key or Authentication error", request=response.request, response=response)
         if response.status_code in [400, 404]:
+            print(f"Request error ({response.status_code}) from {provider}: {response.text}")
             raise httpx.HTTPStatusError("Bad request or wrong model name", request=response.request, response=response)
             
         response.raise_for_status()
