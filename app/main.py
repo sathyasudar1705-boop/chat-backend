@@ -106,8 +106,8 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     # Create Default User Settings
     default_settings = UserSettings(
         user_id=new_user.id,
-        default_provider="gemini",
-        default_model="gemini-1.5-flash",
+        default_provider="mistral",
+        default_model="open-mixtral-8x7b",
         fallback_enabled=True,
         theme="dark"
     )
@@ -359,224 +359,38 @@ async def get_image_models(current_user: User = Depends(get_current_user)):
 # IMAGE GENERATION ENDPOINTS
 # ==========================================
 
-@app.post("/api/image/generate", response_model=ImageGenerationOut)
+@app.post("/api/image/generate")
 async def generate_image(req: ImageGenerateRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    prov_lower = req.provider.lower()
-    
-    # Check if provider is Groq or Cerebras
-    if prov_lower in ["groq", "cerebras"]:
-        raise HTTPException(
-            status_code=400,
-            detail="This provider does not support image generation. Please choose Gemini, OpenRouter, or Mistral."
-        )
-        
-    if prov_lower not in ["gemini", "openrouter", "mistral"]:
-        raise HTTPException(
-            status_code=400,
-            detail="This provider does not support image generation. Please choose Gemini, OpenRouter, or Mistral."
-        )
-        
-    start_time = time.time()
-    image_data = None
-    
     try:
-        async with httpx.AsyncClient() as client:
-            if prov_lower == "gemini":
-                # Primary provider: Gemini
-                api_key = API_KEYS.get("gemini")
-                if not api_key:
-                    raise HTTPException(status_code=500, detail="Gemini API key is not configured on the server.")
-                
-                # Imagen endpoint: we try to run the request using the model from user
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:generateImages?key={api_key}"
-                payload = {
-                    "prompt": {"text": req.prompt},
-                    "numberOfImages": 1,
-                    "outputMimeType": "image/jpeg",
-                    "aspectRatio": "1:1"
-                }
-                
-                try:
-                    response = await client.post(url, json=payload, timeout=30.0)
-                    if response.status_code == 200:
-                        data = response.json()
-                        base64_image = data["generatedImages"][0]["image"]["imageBytes"]
-                        import base64
-                        image_data = base64.b64decode(base64_image)
-                    else:
-                        raise ValueError(f"Google API returned {response.status_code}: {response.text}")
-                except Exception as e:
-                    print(f"Gemini Imagen API call failed ({e}). Falling back to Pollinations AI under the hood.")
-                    prompt_encoded = urllib.parse.quote(req.prompt)
-                    fallback_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width=1024&height=1024&nologo=true&private=true"
-                    res = await client.get(fallback_url, timeout=30.0)
-                    if res.status_code == 200:
-                        image_data = res.content
-                    else:
-                        raise HTTPException(status_code=500, detail="Image generation failed on both Gemini and fallback.")
-                        
-            elif prov_lower == "openrouter":
-                # Secondary provider: OpenRouter
-                api_key = API_KEYS.get("openrouter")
-                if not api_key:
-                    raise HTTPException(status_code=500, detail="OpenRouter API key is not configured on the server.")
-                    
-                url = "https://openrouter.ai/api/v1/chat/completions"
-                headers = {
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://chatbot.secure.platform",
-                    "X-Title": "Secure AI Chatbot"
-                }
-                model_to_use = req.model if req.model != "auto" else "stabilityai/stable-diffusion-xl"
-                payload = {
-                    "model": model_to_use,
-                    "messages": [
-                        {"role": "user", "content": f"Generate an image for: {req.prompt}"}
-                    ]
-                }
-                
-                try:
-                    response = await client.post(url, headers=headers, json=payload, timeout=30.0)
-                    if response.status_code == 200:
-                        choice_content = response.json()["choices"][0]["message"]["content"]
-                        import re
-                        urls = re.findall(r'https?://[^\s)"]+', choice_content)
-                        if urls:
-                            img_res = await client.get(urls[0], timeout=30.0)
-                            if img_res.status_code == 200:
-                                image_data = img_res.content
-                            else:
-                                raise ValueError("Failed to download image from OpenRouter returned URL.")
-                        else:
-                            raise ValueError(f"No image URL found in OpenRouter choice content: {choice_content}")
-                    else:
-                        raise ValueError(f"OpenRouter returned {response.status_code}: {response.text}")
-                except Exception as e:
-                    print(f"OpenRouter image API call failed ({e}). Falling back to Pollinations AI.")
-                    prompt_encoded = urllib.parse.quote(req.prompt)
-                    fallback_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width=1024&height=1024&nologo=true&private=true"
-                    res = await client.get(fallback_url, timeout=30.0)
-                    if res.status_code == 200:
-                        image_data = res.content
-                    else:
-                        raise HTTPException(status_code=500, detail="OpenRouter image generation failed.")
-                        
-            elif prov_lower == "mistral":
-                # Optional provider: Mistral Agents API with image_generation tool
-                api_key = API_KEYS.get("mistral")
-                if not api_key:
-                    raise HTTPException(status_code=500, detail="Mistral API key is not configured on the server.")
-                    
-                url = "https://api.mistral.ai/v1/chat/completions"
-                headers = {
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
-                }
-                
-                tools = [{
-                    "type": "function",
-                    "function": {
-                        "name": "image_generation",
-                        "description": "Generate an image from a text prompt",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "prompt": {
-                                    "type": "string",
-                                    "description": "The prompt describing the image to generate"
-                                }
-                            },
-                            "required": ["prompt"]
-                        }
-                    }
-                }]
-                
-                payload = {
-                    "model": "mistral-large-latest",
-                    "messages": [
-                        {"role": "system", "content": "You are an AI assistant that has access to an image generation tool. When the user asks you to generate an image, you must call the image_generation tool. Do not return text."},
-                        {"role": "user", "content": f"Generate an image for: {req.prompt}"}
-                    ],
-                    "tools": tools,
-                    "tool_choice": "any"
-                }
-                
-                try:
-                    response = await client.post(url, headers=headers, json=payload, timeout=30.0)
-                    if response.status_code == 200:
-                        data = response.json()
-                        message = data["choices"][0]["message"]
-                        tool_calls = message.get("tool_calls", [])
-                        if tool_calls:
-                            import json
-                            arguments = json.loads(tool_calls[0]["function"]["arguments"])
-                            tool_prompt = arguments.get("prompt", req.prompt)
-                            
-                            # Execute image generation
-                            prompt_encoded = urllib.parse.quote(tool_prompt)
-                            gen_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width=1024&height=1024&nologo=true&private=true"
-                            img_res = await client.get(gen_url, timeout=30.0)
-                            if img_res.status_code == 200:
-                                image_data = img_res.content
-                            else:
-                                raise ValueError("Mistral image tool call failed.")
-                        else:
-                            raise ValueError("Mistral did not trigger the tool call.")
-                    else:
-                        raise ValueError(f"Mistral returned {response.status_code}: {response.text}")
-                except Exception as e:
-                    print(f"Mistral image API call failed ({e}). Falling back to Pollinations AI.")
-                    prompt_encoded = urllib.parse.quote(req.prompt)
-                    fallback_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width=1024&height=1024&nologo=true&private=true"
-                    res = await client.get(fallback_url, timeout=30.0)
-                    if res.status_code == 200:
-                        image_data = res.content
-                    else:
-                        raise HTTPException(status_code=500, detail="Mistral image generation failed.")
-            
-            # Save the image content
-            if not image_data:
-                raise HTTPException(status_code=500, detail="No image data returned from provider.")
-                
-            # Save locally
-            filename = f"{uuid.uuid4()}.png"
-            filepath = os.path.join(IMAGE_DIR, filename)
-            
-            with open(filepath, "wb") as f:
-                f.write(image_data)
-                
-            image_path = f"/static/images/{filename}"
-            
-            # Save record to Database
-            new_image = ImageGeneration(
-                user_id=current_user.id,
-                provider=req.provider,
-                model=req.model,
-                prompt=req.prompt,
-                image_url_or_path=image_path,
-                status="success"
-            )
-            db.add(new_image)
-            db.commit()
-            db.refresh(new_image)
-            
-            return new_image
-            
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        # Save failed image generation record
+        # Build image URL using pollinations (no downloading/local file saving)
+        prompt_encoded = urllib.parse.quote(req.prompt)
+        image_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width=1024&height=1024&nologo=true&private=true"
+        
+        # Save record to Database
         new_image = ImageGeneration(
             user_id=current_user.id,
-            provider=req.provider,
-            model=req.model,
+            provider="pollinations",
+            model="default",
             prompt=req.prompt,
-            image_url_or_path="",
-            status="failed"
+            image_url_or_path=image_url,
+            status="success"
         )
         db.add(new_image)
         db.commit()
+        db.refresh(new_image)
+        
+        return {
+            "id": new_image.id,
+            "user_id": new_image.user_id,
+            "status": "success",
+            "provider": "pollinations",
+            "model": "default",
+            "image_url": image_url,
+            "image_url_or_path": image_url,
+            "prompt": req.prompt,
+            "created_at": new_image.created_at
+        }
+    except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
 
 @app.get("/api/image/my-gallery", response_model=List[ImageGenerationOut])

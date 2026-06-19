@@ -35,8 +35,18 @@ DEFAULT_MODELS = {
     "mistral": "open-mixtral-8x7b",
 }
 
-# Priority Chain
-PRIORITY_CHAIN = ["gemini", "groq", "openrouter", "cerebras", "mistral"]
+# Supported Models Config for Validation
+SUPPORTED_MODELS = {
+    "gemini": ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
+    "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"],
+    "openrouter": ["meta-llama/llama-3.1-8b-instruct:free", "google/gemma-2-9b-it:free", "mistralai/mistral-7b-instruct:free"],
+    "cerebras": ["llama3.1-8b", "llama3.1-70b"],
+    "mistral": ["open-mixtral-8x7b", "mistral-tiny", "mistral-small-latest"],
+    "pollinations": ["flux", "default"]
+}
+
+# Priority Chain (Mistral as temporary default provider)
+PRIORITY_CHAIN = ["mistral", "gemini", "groq", "openrouter", "cerebras"]
 
 SYSTEM_PROMPT = (
     "You are a secure personal AI assistant. You must answer only using the logged-in user's own data "
@@ -177,6 +187,16 @@ def save_usage_log(db: Session, user_id: int, provider: str, model: str, status:
             print(f"Failed to save usage log: {e}")
 
 async def ask_ai(message: str, user_id: int, provider: str = "auto", model: str = "auto", chat_history: List[Dict[str, str]] = None, fallback_enabled: bool = True, db: Session = None) -> Dict[str, Any]:
+    # Validate selected model name if provider and model are specifically requested
+    prov_lower = provider.lower()
+    if prov_lower != "auto" and model != "auto":
+        valid_models = SUPPORTED_MODELS.get(prov_lower, [])
+        if model not in valid_models:
+            raise HTTPException(
+                status_code=400,
+                detail="This model is not available for the selected provider."
+            )
+
     if chat_history is None:
         chat_history = []
         
@@ -219,6 +239,23 @@ async def ask_ai(message: str, user_id: int, provider: str = "auto", model: str 
                 raise HTTPException(status_code=500, detail=err_msg)
             fallback_occurred = True
             continue
+            
+        # Verify API key format for Gemini
+        if current_prov == "gemini":
+            if not (api_key.startswith("AIzaSy") and len(api_key) == 39) and not (api_key.startswith("AQ") and len(api_key) >= 100):
+                err_msg = "Invalid Gemini API key format"
+                failed_providers.append(current_prov)
+                save_usage_log(
+                    db=db,
+                    user_id=user_id,
+                    provider=current_prov,
+                    model=current_model,
+                    status="error",
+                    response_time_ms=0,
+                    fallback_used=fallback_occurred,
+                    error_message=err_msg
+                )
+                raise HTTPException(status_code=400, detail=err_msg)
             
         start_time = time.time()
         try:
