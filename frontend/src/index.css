@@ -1,0 +1,175 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: #F8FAFC;
+  color: #111827;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Thin custom scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}
+
+/* Typing cursor blink */
+@keyframes blink {
+  50% { border-color: transparent; }
+}
+.typing-cursor {
+  border-right: 2px solid #2563EB;
+  animation: blink 0.75s step-end infinite;
+}
+
+/* Shimmer skeleton */
+.shimmer-bg {
+  background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+/* Button hover lift */
+.btn-hover-scale {
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-hover-scale:hover  { transform: translateY(-1px); }
+.btn-hover-scale:active { transform: translateY(0);    }
+
+/* Card hover lift */
+.card-hover-lift {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -4px rgba(0,0,0,0.08);
+}
+
+/* Dot typing animation */
+.dot-1 { animation: dots 1.4s 0.0s infinite ease-in-out; }
+.dot-2 { animation: dots 1.4s 0.2s infinite ease-in-out; }
+.dot-3 { animation: dots 1.4s 0.4s infinite ease-in-out; }
+@keyframes dots {
+  0%, 80%, 100% { transform: scale(0.5); opacity: 0.3; }
+  40%            { transform: scale(1.0); opacity: 1.0; }
+}
+
+/* Page fade-in */
+.page-fade {
+  animation: pageFade 0.3s ease-out;
+}
+@keyframes pageFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+/* Chat bubble slide-up */
+.bubble-enter {
+  animation: bubbleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes bubbleUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Focus ring for inputs */
+.input-focus {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+.input-focus:focus {
+  outline: none;
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  background-color: #fff;
+}
+
+/* Pill badge */
+.provider-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  background-color: #EFF6FF;
+  color: #2563EB;
+  border: 1px solid #BFDBFE;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.provider-pill:hover {
+  background-color: #DBEAFE;
+}
+
+/* ─────────────── CHAT BUBBLE & INPUT COLOR OVERRIDES ─────────────── */
+.user-bubble {
+  background-color: #2563EB !important;
+  background-image: none !important;
+  color: #FFFFFF !important;
+}
+
+.user-bubble,
+.user-bubble p,
+.user-bubble span {
+  color: #FFFFFF !important;
+}
+
+.assistant-bubble {
+  background-color: #FFFFFF !important;
+  background-image: none !important;
+  color: #1F2937 !important;
+}
+
+.assistant-bubble,
+.assistant-bubble p,
+.assistant-bubble span,
+.assistant-bubble li,
+.assistant-bubble ul,
+.assistant-bubble ol,
+.assistant-bubble h1,
+.assistant-bubble h2,
+.assistant-bubble h3,
+.assistant-bubble h4,
+.assistant-bubble strong {
+  color: #1F2937 !important;
+}
+
+.assistant-bubble a {
+  color: #2563EB !important;
+  text-decoration: underline;
+}
+
+.chatbot-textarea {
+  color: #1F2937 !important;
+}

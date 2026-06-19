@@ -1,0 +1,13 @@
+{
+  "name": "omnibot-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Enterprise-grade multi-provider AI chatbot platform with strict database isolation",
+  "scripts": {
+    "install:frontend": "npm --prefix frontend install",
+    "dev:frontend": "npm --prefix frontend run dev"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

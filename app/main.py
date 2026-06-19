@@ -13,7 +13,7 @@ project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from fastapi import FastAPI, Depends, HTTPException, status, Query
+from fastapi import FastAPI, Depends, HTTPException, status, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -22,7 +22,7 @@ from sqlalchemy.sql import func
 import httpx
 
 from app.database import engine, Base, get_db
-from app.models import User, ChatSession, ChatMessage, AIUsageLog, ImageGeneration, UserSettings
+from app.models import User, ChatSession, ChatMessage, AIUsageLog, ImageGeneration, UserSettings, ProviderModel, ProviderStatus
 from app.schemas import (
     UserRegister, UserLogin, UserOut, Token,
     ChatSessionCreate, ChatSessionOut, ChatMessageCreate, ChatMessageOut, ChatMessagePostRequest, ChatResponse,
@@ -31,12 +31,27 @@ from app.schemas import (
     UserSettingsOut, UserSettingsUpdate
 )
 from app.auth import get_password_hash, verify_password, create_access_token, get_current_user
-from app.router_ai import ask_ai, API_KEYS, DEFAULT_MODELS
+from app.router_ai import ask_ai, API_KEYS, DEFAULT_MODELS, sync_all_providers, sync_provider_models, validate_provider_model, is_api_key_configured
 
 # Automatically create database tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Secure Multi-Provider AI Chatbot Platform")
+
+@app.on_event("startup")
+async def startup_event():
+    import asyncio
+    from app.database import SessionLocal
+    async def sync_on_start():
+        db = SessionLocal()
+        try:
+            await sync_all_providers(db)
+        except Exception as e:
+            print(f"Failed to sync on startup: {e}")
+        finally:
+            db.close()
+            
+    asyncio.create_task(sync_on_start())
 
 # CORS Setup
 app.add_middleware(
@@ -208,14 +223,11 @@ async def post_message(req: ChatMessagePostRequest, current_user: User = Depends
     if not req.content or not req.content.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
         
-    prov_lower = req.provider.lower()
-    if prov_lower != "auto":
-        from app.router_ai import SUPPORTED_MODELS
-        if prov_lower not in SUPPORTED_MODELS:
-            raise HTTPException(status_code=400, detail="This model is not available for the selected provider.")
-        
-        if req.model != "auto" and req.model not in SUPPORTED_MODELS[prov_lower]:
-            raise HTTPException(status_code=400, detail="This model is not available for the selected provider.")
+    if not validate_provider_model(req.provider, req.model, "chat", db):
+        raise HTTPException(
+            status_code=400,
+            detail="This model is not available for the selected provider."
+        )
 
     # Security: Verify session belongs to current_user
     session = db.query(ChatSession).filter(ChatSession.id == req.session_id, ChatSession.user_id == current_user.id).first()
@@ -303,24 +315,106 @@ async def post_message(req: ChatMessagePostRequest, current_user: User = Depends
 # ==========================================
 
 @app.get("/api/models")
-def get_models(current_user: User = Depends(get_current_user)):
-    # Standard lists (only active/working models to disable others)
-    return {
-        "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"],
-        "mistral": ["open-mixtral-8x7b", "mistral-tiny", "mistral-small-latest"],
-        "pollinations": ["flux", "default"]
-    }
+async def get_models(background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Auto-refresh check: if there is no status, or if latest status is older than 24h
+    latest_status = db.query(ProviderStatus).order_by(ProviderStatus.updated_at.desc()).first()
+    needs_refresh = False
+    if not latest_status:
+        needs_refresh = True
+    else:
+        # If older than 24 hours
+        if (datetime.utcnow() - latest_status.updated_at.replace(tzinfo=None)) > timedelta(hours=24):
+            needs_refresh = True
+            
+    if needs_refresh:
+        background_tasks.add_task(sync_all_providers, db)
+
+    providers_list = []
+    statuses = {s.provider: s for s in db.query(ProviderStatus).all()}
+    
+    models_by_provider = {}
+    for m in db.query(ProviderModel).filter(ProviderModel.active == True).all():
+        if m.provider not in models_by_provider:
+            models_by_provider[m.provider] = []
+        models_by_provider[m.provider].append({
+            "id": m.model_id,
+            "name": m.name,
+            "active": m.active,
+            "supports_chat": m.supports_chat,
+            "supports_image": m.supports_image
+        })
+        
+    for provider in ["gemini", "groq", "openrouter", "cerebras", "mistral", "pollinations"]:
+        status = statuses.get(provider)
+        enabled = False
+        if provider == "pollinations":
+            enabled = True
+        elif status:
+            enabled = status.api_key_configured
+        else:
+            enabled = is_api_key_configured(provider)
+            
+        models = models_by_provider.get(provider, [])
+        
+        # Fresh startup fallbacks to prevent empty UI dropdowns
+        if not models and enabled:
+            if provider == "groq":
+                models = [{"id": "llama-3.3-70b-versatile", "name": "Llama 3.3 70B Versatile", "active": True, "supports_chat": True, "supports_image": False}]
+            elif provider == "mistral":
+                models = [{"id": "open-mixtral-8x7b", "name": "Open Mixtral 8x7B", "active": True, "supports_chat": True, "supports_image": False}]
+            elif provider == "gemini":
+                models = [{"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash", "active": True, "supports_chat": True, "supports_image": False}]
+            elif provider == "openrouter":
+                models = [{"id": "meta-llama/llama-3.1-8b-instruct:free", "name": "Llama 3.1 8B Instruct (Free)", "active": True, "supports_chat": True, "supports_image": False}]
+            elif provider == "cerebras":
+                models = [{"id": "llama3.1-8b", "name": "Llama 3.1 8B", "active": True, "supports_chat": True, "supports_image": False}]
+            elif provider == "pollinations":
+                models = [
+                    {"id": "flux", "name": "Flux", "active": True, "supports_chat": False, "supports_image": True},
+                    {"id": "default", "name": "Default", "active": True, "supports_chat": False, "supports_image": True}
+                ]
+                
+        providers_list.append({
+            "name": provider,
+            "enabled": enabled,
+            "models": models
+        })
+        
+    return {"providers": providers_list}
+
+@app.post("/api/models/refresh")
+async def refresh_models(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    await sync_all_providers(db)
+    return {"detail": "Model registry refreshed successfully."}
 
 @app.get("/api/providers/status")
-def get_providers_status(current_user: User = Depends(get_current_user)):
-    status_dict = {}
-    for prov in ["gemini", "groq", "openrouter", "cerebras", "mistral"]:
-        key = API_KEYS.get(prov)
-        if key and not key.startswith("your-") and len(key) > 10:
-            status_dict[prov] = "active"
+def get_providers_status(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    statuses = db.query(ProviderStatus).all()
+    status_dict = {s.provider: s for s in statuses}
+    
+    result = []
+    for provider in ["gemini", "groq", "openrouter", "cerebras", "mistral", "pollinations"]:
+        s = status_dict.get(provider)
+        if s:
+            result.append({
+                "provider": provider,
+                "api_key_configured": s.api_key_configured,
+                "models_fetched": s.models_fetched,
+                "working": s.working,
+                "last_error": s.last_error,
+                "active_model_count": s.active_model_count
+            })
         else:
-            status_dict[prov] = "inactive"
-    return status_dict
+            is_configured = is_api_key_configured(provider) if provider != "pollinations" else True
+            result.append({
+                "provider": provider,
+                "api_key_configured": is_configured,
+                "models_fetched": False,
+                "working": False,
+                "last_error": "Not synced yet",
+                "active_model_count": 0
+            })
+    return result
 
 
 @app.get("/api/models/image")
@@ -371,6 +465,11 @@ async def get_image_models(current_user: User = Depends(get_current_user)):
 
 @app.post("/api/image/generate")
 async def generate_image(req: ImageGenerateRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not validate_provider_model(req.provider, req.model, "image", db):
+        raise HTTPException(
+            status_code=400,
+            detail="This model is not available for the selected provider."
+        )
     try:
         # Build image URL using pollinations (no downloading/local file saving)
         prompt_encoded = urllib.parse.quote(req.prompt)
@@ -401,6 +500,7 @@ async def generate_image(req: ImageGenerateRequest, current_user: User = Depends
             "created_at": new_image.created_at
         }
     except Exception as e:
+        print(f"[ERROR] Provider: {req.provider}, Model: {req.model}, StatusCode: 500, Message: {str(e)}, RequestType: image")
         raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
 
 @app.get("/api/image/my-gallery", response_model=List[ImageGenerationOut])

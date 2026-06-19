@@ -95,3 +95,27 @@ class UserSettings(Base):
 
     # Relationships
     user = relationship("User", back_populates="settings")
+
+class ProviderModel(Base):
+    __tablename__ = "provider_models"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    provider = Column(String(100), nullable=False)
+    model_id = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=False)
+    active = Column(Boolean, default=True)
+    supports_chat = Column(Boolean, default=True)
+    supports_image = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class ProviderStatus(Base):
+    __tablename__ = "provider_statuses"
+
+    provider = Column(String(100), primary_key=True, index=True)
+    api_key_configured = Column(Boolean, default=False)
+    models_fetched = Column(Boolean, default=False)
+    working = Column(Boolean, default=False)
+    last_error = Column(Text, nullable=True)
+    active_model_count = Column(Integer, default=0)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

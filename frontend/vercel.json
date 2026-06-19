@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://chat-backend-jade.vercel.app/api/:path*"
+    },
+    {
+      "source": "/static/:path*",
+      "destination": "https://chat-backend-jade.vercel.app/static/:path*"
+    }
+  ]
+}

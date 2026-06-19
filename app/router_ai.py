@@ -4,7 +4,7 @@ import httpx
 from typing import List, Dict, Tuple, Optional, Any
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from app.models import AIUsageLog
+from app.models import AIUsageLog, ProviderModel, ProviderStatus
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -35,21 +35,243 @@ DEFAULT_MODELS = {
     "mistral": "open-mixtral-8x7b",
 }
 
-# Supported Models Config for Validation (disabling non-working providers)
-SUPPORTED_MODELS = {
-    "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"],
-    "mistral": ["open-mixtral-8x7b", "mistral-tiny", "mistral-small-latest"],
-    "pollinations": ["flux", "default"]
-}
 
-# Priority Chain (Groq & Mistral only)
-PRIORITY_CHAIN = ["groq", "mistral"]
 
 SYSTEM_PROMPT = (
     "You are a secure personal AI assistant. You must answer only using the logged-in user's own data "
     "and allowed context. Never reveal, guess, or use another user's data. If the user asks about "
     "another user or unrelated private data, politely refuse."
 )
+
+def is_api_key_configured(provider: str) -> bool:
+    if provider == "pollinations":
+        return True
+    key = API_KEYS.get(provider, "")
+    return bool(key and not key.startswith("your-") and len(key) > 10)
+
+async def sync_provider_models(provider: str, db: Session):
+    is_configured = is_api_key_configured(provider)
+    
+    status = db.query(ProviderStatus).filter(ProviderStatus.provider == provider).first()
+    if not status:
+        status = ProviderStatus(provider=provider)
+        db.add(status)
+        
+    status.api_key_configured = is_configured
+    
+    if not is_configured:
+        status.models_fetched = False
+        status.working = False
+        status.last_error = "API Key not configured"
+        status.active_model_count = 0
+        db.commit()
+        db.query(ProviderModel).filter(ProviderModel.provider == provider).update({"active": False})
+        db.commit()
+        return
+
+    try:
+        models = []
+        if provider == "pollinations":
+            models = [
+                {"id": "flux", "name": "Flux", "supports_chat": False, "supports_image": True},
+                {"id": "default", "name": "Default", "supports_chat": False, "supports_image": True}
+            ]
+        elif provider == "gemini":
+            api_key = API_KEYS.get("gemini")
+            url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(url, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+                for m in data.get("models", []):
+                    methods = m.get("supportedGenerationMethods", [])
+                    if "generateContent" in methods:
+                        model_id = m.get("name", "").replace("models/", "")
+                        display_name = m.get("displayName", model_id)
+                        models.append({
+                            "id": model_id,
+                            "name": display_name,
+                            "supports_chat": True,
+                            "supports_image": False
+                        })
+        elif provider == "groq":
+            api_key = API_KEYS.get("groq")
+            url = "https://api.groq.com/openai/v1/models"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            }
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(url, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+                for m in data.get("data", []):
+                    model_id = m.get("id", "")
+                    if "gemma2-9b-it" in model_id or "whisper" in model_id or "guard" in model_id:
+                        continue
+                    models.append({
+                        "id": model_id,
+                        "name": model_id,
+                        "supports_chat": True,
+                        "supports_image": False
+                    })
+        elif provider == "openrouter":
+            api_key = API_KEYS.get("openrouter")
+            url = "https://openrouter.ai/api/v1/models"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "HTTP-Referer": "https://chatbot.secure.platform",
+                "X-Title": "Secure AI Chatbot",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            }
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(url, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+                for m in data.get("data", []):
+                    model_id = m.get("id", "")
+                    display_name = m.get("name", model_id)
+                    architecture = m.get("architecture", {})
+                    modality = architecture.get("modality", "") if architecture else ""
+                    
+                    is_chat = False
+                    if modality:
+                        if modality.endswith("text") or "->text" in modality:
+                            is_chat = True
+                    else:
+                        is_chat = True
+                        
+                    if is_chat:
+                        models.append({
+                            "id": model_id,
+                            "name": display_name,
+                            "supports_chat": True,
+                            "supports_image": False
+                        })
+        elif provider == "cerebras":
+            api_key = API_KEYS.get("cerebras")
+            url = "https://api.cerebras.ai/v1/models"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            }
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(url, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+                for m in data.get("data", []):
+                    model_id = m.get("id", "")
+                    models.append({
+                        "id": model_id,
+                        "name": model_id,
+                        "supports_chat": True,
+                        "supports_image": False
+                    })
+        elif provider == "mistral":
+            api_key = API_KEYS.get("mistral")
+            url = "https://api.mistral.ai/v1/models"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            }
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(url, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+                for m in data.get("data", []):
+                    model_id = m.get("id", "")
+                    if "embed" in model_id or "moderation" in model_id:
+                        continue
+                    models.append({
+                        "id": model_id,
+                        "name": model_id,
+                        "supports_chat": True,
+                        "supports_image": False
+                    })
+
+        # Save to database
+        db.query(ProviderModel).filter(ProviderModel.provider == provider).delete()
+        
+        # Prepare list of dicts for bulk insert
+        db_models = []
+        for m in models:
+            db_models.append({
+                "provider": provider,
+                "model_id": m["id"],
+                "name": m["name"],
+                "active": True,
+                "supports_chat": m["supports_chat"],
+                "supports_image": m["supports_image"]
+            })
+            
+        if db_models:
+            db.bulk_insert_mappings(ProviderModel, db_models)
+            
+        status.models_fetched = True
+        status.working = True
+        status.last_error = None
+        status.active_model_count = len(models)
+        db.commit()
+
+    except Exception as e:
+        status.models_fetched = False
+        status.working = False
+        status.last_error = str(e)
+        status.active_model_count = 0
+        db.commit()
+        db.query(ProviderModel).filter(ProviderModel.provider == provider).update({"active": False})
+        db.commit()
+        print(f"Failed to sync provider {provider}: {e}")
+
+async def sync_all_providers(db: Session):
+    for provider in ["gemini", "groq", "openrouter", "cerebras", "mistral", "pollinations"]:
+        await sync_provider_models(provider, db)
+
+def validate_provider_model(provider: str, model: str, operation: str, db: Session) -> bool:
+    prov_lower = provider.lower()
+    
+    if prov_lower == "auto" or model == "auto":
+        return True
+        
+    model_count = db.query(ProviderModel).count()
+    if model_count == 0:
+        FALLBACK_VALIDATION = {
+            "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+            "mistral": ["open-mixtral-8x7b", "mistral-tiny", "mistral-small-latest"],
+            "gemini": ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
+            "openrouter": ["meta-llama/llama-3.1-8b-instruct:free", "google/gemma-2-9b-it:free", "mistralai/mistral-7b-instruct:free"],
+            "cerebras": ["llama3.1-8b", "llama3.1-70b"],
+            "pollinations": ["flux", "default"]
+        }
+        valid_models = FALLBACK_VALIDATION.get(prov_lower, [])
+        if model not in valid_models:
+            return False
+        if operation == "image" and prov_lower != "pollinations":
+            return False
+        if operation == "chat" and prov_lower == "pollinations":
+            return False
+        return True
+        
+    db_model = db.query(ProviderModel).filter(
+        ProviderModel.provider == prov_lower,
+        ProviderModel.model_id == model,
+        ProviderModel.active == True
+    ).first()
+    
+    if not db_model:
+        return False
+        
+    status = db.query(ProviderStatus).filter(ProviderStatus.provider == prov_lower).first()
+    if status and not status.api_key_configured:
+        return False
+        
+    if operation == "chat" and not db_model.supports_chat:
+        return False
+    if operation == "image" and not db_model.supports_image:
+        return False
+        
+    return True
 
 async def call_gemini(message: str, model: str, chat_history: List[Dict[str, str]], system_prompt: str, api_key: str, timeout: float = 15.0) -> Tuple[str, int, int]:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
@@ -186,12 +408,21 @@ def save_usage_log(db: Session, user_id: int, provider: str, model: str, status:
             db.rollback()
             print(f"Failed to save usage log: {e}")
 
+def get_default_model(provider: str, db: Session) -> str:
+    db_model = db.query(ProviderModel).filter(
+        ProviderModel.provider == provider,
+        ProviderModel.active == True,
+        ProviderModel.supports_chat == True
+    ).first()
+    if db_model:
+        return db_model.model_id
+    return DEFAULT_MODELS.get(provider, "")
+
 async def ask_ai(message: str, user_id: int, provider: str = "auto", model: str = "auto", chat_history: List[Dict[str, str]] = None, fallback_enabled: bool = True, db: Session = None) -> Dict[str, Any]:
     # Validate selected model name if provider and model are specifically requested
     prov_lower = provider.lower()
-    if prov_lower != "auto" and model != "auto":
-        valid_models = SUPPORTED_MODELS.get(prov_lower, [])
-        if model not in valid_models:
+    if db:
+        if not validate_provider_model(provider, model, "chat", db):
             raise HTTPException(
                 status_code=400,
                 detail="This model is not available for the selected provider."
@@ -202,15 +433,26 @@ async def ask_ai(message: str, user_id: int, provider: str = "auto", model: str 
         
     start_provider = provider.lower()
     
+    # Build priority chain dynamically from working providers
+    working_providers = []
+    if db:
+        active_statuses = db.query(ProviderStatus).filter(ProviderStatus.working == True).all()
+        working_providers = [s.provider for s in active_statuses if s.provider != "pollinations" and s.provider in DEFAULT_MODELS]
+        
+    PRIORITY_ORDER = ["groq", "mistral", "gemini", "openrouter", "cerebras"]
+    priority_chain = [p for p in PRIORITY_ORDER if p in working_providers]
+    if not priority_chain:
+        priority_chain = ["groq", "mistral"]
+    
     # Build the list of providers to try based on priority chain
-    if start_provider == "auto" or start_provider not in PRIORITY_CHAIN:
-        providers_to_try = PRIORITY_CHAIN.copy()
+    if start_provider == "auto" or start_provider not in priority_chain:
+        providers_to_try = priority_chain.copy()
     else:
         # If user specifies a starting provider, try it first.
         # If fallback is enabled, we append subsequent providers from the priority chain.
-        idx = PRIORITY_CHAIN.index(start_provider)
+        idx = priority_chain.index(start_provider)
         if fallback_enabled:
-            providers_to_try = PRIORITY_CHAIN[idx:]
+            providers_to_try = priority_chain[idx:]
         else:
             providers_to_try = [start_provider]
             
@@ -218,12 +460,20 @@ async def ask_ai(message: str, user_id: int, provider: str = "auto", model: str 
     fallback_occurred = False
     
     for i, current_prov in enumerate(providers_to_try):
-        current_model = model if (model != "auto" and i == 0) else DEFAULT_MODELS[current_prov]
+        if model != "auto" and i == 0:
+            current_model = model
+        else:
+            if db:
+                current_model = get_default_model(current_prov, db)
+            else:
+                current_model = DEFAULT_MODELS.get(current_prov, "")
+                
         api_key = API_KEYS.get(current_prov)
         
         # Check if API key is present
         if not api_key:
             err_msg = f"API key for {current_prov} not found in environment."
+            print(f"[ERROR] Provider: {current_prov}, Model: {current_model}, StatusCode: 500, Message: {err_msg}, RequestType: chat")
             failed_providers.append(current_prov)
             save_usage_log(
                 db=db,
@@ -235,7 +485,7 @@ async def ask_ai(message: str, user_id: int, provider: str = "auto", model: str 
                 fallback_used=fallback_occurred,
                 error_message=err_msg
             )
-            if not fallback_enabled:
+            if not fallback_enabled or i == len(providers_to_try) - 1:
                 raise HTTPException(status_code=500, detail=err_msg)
             fallback_occurred = True
             continue
@@ -244,6 +494,7 @@ async def ask_ai(message: str, user_id: int, provider: str = "auto", model: str 
         if current_prov == "gemini":
             if not (api_key.startswith("AIzaSy") and len(api_key) == 39) and not (api_key.startswith("AQ") and len(api_key) >= 100):
                 err_msg = "Invalid Gemini API key format"
+                print(f"[ERROR] Provider: {current_prov}, Model: {current_model}, StatusCode: 400, Message: {err_msg}, RequestType: chat")
                 failed_providers.append(current_prov)
                 save_usage_log(
                     db=db,
@@ -311,7 +562,7 @@ async def ask_ai(message: str, user_id: int, provider: str = "auto", model: str 
             elapsed_time_ms = int((time.time() - start_time) * 1000)
             err_msg = f"HTTP {status_code}: {e.response.text}"
             
-            # Log error
+            print(f"[ERROR] Provider: {current_prov}, Model: {current_model}, StatusCode: {status_code}, Message: HTTP Status Error, RequestType: chat")
             save_usage_log(
                 db=db,
                 user_id=user_id,
@@ -342,6 +593,7 @@ async def ask_ai(message: str, user_id: int, provider: str = "auto", model: str 
             elapsed_time_ms = int((time.time() - start_time) * 1000)
             err_msg = f"Network Timeout/Connection Error: {str(e)}"
             
+            print(f"[ERROR] Provider: {current_prov}, Model: {current_model}, StatusCode: 504, Message: {err_msg}, RequestType: chat")
             save_usage_log(
                 db=db,
                 user_id=user_id,
@@ -363,6 +615,7 @@ async def ask_ai(message: str, user_id: int, provider: str = "auto", model: str 
             elapsed_time_ms = int((time.time() - start_time) * 1000)
             err_msg = str(e)
             
+            print(f"[ERROR] Provider: {current_prov}, Model: {current_model}, StatusCode: 500, Message: {err_msg}, RequestType: chat")
             save_usage_log(
                 db=db,
                 user_id=user_id,
