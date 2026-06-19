@@ -294,7 +294,7 @@ def get_models(current_user: User = Depends(get_current_user)):
     # Standard lists
     return {
         "gemini": ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
-        "groq": ["llama-3.3-70b-versatile", "mixtral-8x7b-32768", "gemma2-9b-it"],
+        "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"],
         "openrouter": ["meta-llama/llama-3.1-8b-instruct:free", "google/gemma-2-9b-it:free", "mistralai/mistral-7b-instruct:free"],
         "cerebras": ["llama3.1-8b", "llama3.1-70b"],
         "mistral": ["open-mixtral-8x7b", "mistral-tiny", "mistral-small-latest"],

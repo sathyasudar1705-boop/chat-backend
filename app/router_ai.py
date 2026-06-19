@@ -2,6 +2,7 @@ import os
 import time
 import httpx
 from typing import List, Dict, Tuple, Optional, Any
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models import AIUsageLog
 from dotenv import load_dotenv
@@ -132,7 +133,7 @@ async def call_openai_compatible(provider: str, model: str, message: str, chat_h
         # Check non-retryable status codes
         if response.status_code in [401, 403]:
             raise httpx.HTTPStatusError("Invalid API key or Authentication error", request=response.request, response=response)
-        if response.status_code == 400:
+        if response.status_code in [400, 404]:
             raise httpx.HTTPStatusError("Bad request or wrong model name", request=response.request, response=response)
             
         response.raise_for_status()
@@ -269,7 +270,6 @@ async def ask_ai(message: str, user_id: int, provider: str = "auto", model: str 
             }
             
         except httpx.HTTPStatusError as e:
-            # 401, 403, 400 are non-retryable
             status_code = e.response.status_code
             elapsed_time_ms = int((time.time() - start_time) * 1000)
             err_msg = f"HTTP {status_code}: {e.response.text}"
@@ -286,15 +286,20 @@ async def ask_ai(message: str, user_id: int, provider: str = "auto", model: str 
                 error_message=err_msg
             )
             
-            if status_code in [400, 401, 403]:
-                # Halt and raise immediately (Do NOT fallback on auth errors or bad requests)
-                raise HTTPException(status_code=status_code, detail=f"AI Provider Error ({current_prov}): {e.response.text}")
-            
-            # For 429, 5xx, or other HTTP errors: log and fallback
-            failed_providers.append(current_prov)
-            if not fallback_enabled or i == len(providers_to_try) - 1:
-                raise HTTPException(status_code=status_code, detail=f"AI Provider Error ({current_prov}): {e.response.text}")
-            fallback_occurred = True
+            if status_code in [429, 500, 502, 503, 504]:
+                # Fallback only for 429, 500, 502, 503, 504
+                failed_providers.append(current_prov)
+                if not fallback_enabled or i == len(providers_to_try) - 1:
+                    raise HTTPException(status_code=status_code, detail=f"AI Provider Error ({current_prov}): {e.response.text}")
+                fallback_occurred = True
+            else:
+                # Halt and raise immediately (Do NOT fallback on 400, 401, 403, 404, etc.)
+                if current_prov == "groq" and status_code in [400, 404]:
+                    detail_msg = "Bad request or wrong model name for Groq"
+                    raise HTTPException(status_code=400, detail=detail_msg)
+                else:
+                    detail_msg = f"AI Provider Error ({current_prov}): {e.response.text}"
+                    raise HTTPException(status_code=status_code, detail=detail_msg)
             
         except (httpx.TimeoutException, httpx.ConnectError) as e:
             elapsed_time_ms = int((time.time() - start_time) * 1000)
