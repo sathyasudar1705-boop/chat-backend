@@ -200,30 +200,34 @@ export default function Chatbot({ user }) {
   const [isImageMode, setIsImageMode]         = useState(false);
 
   // Filter enabled providers and active models for the current mode
-  const availableProviders = (modelsData.providers || []).filter(p => 
-    p.enabled && p.models.some(m => m.active && (isImageMode ? m.supports_image : m.supports_chat))
+  const availableProviders = (modelsData?.providers || []).filter(p => 
+    p && p.enabled && Array.isArray(p.models) && p.models.some(m => m && m.active && (isImageMode ? m.supports_image : m.supports_chat))
   );
 
-  const currentProviderObj = availableProviders.find(p => p.name === provider);
-  const availableModels = currentProviderObj 
-    ? currentProviderObj.models.filter(m => m.active && (isImageMode ? m.supports_image : m.supports_chat))
+  const currentProviderObj = availableProviders.find(p => p && p.name === provider);
+  const availableModels = (currentProviderObj && Array.isArray(currentProviderObj.models))
+    ? currentProviderObj.models.filter(m => m && m.active && (isImageMode ? m.supports_image : m.supports_chat))
     : [];
 
   // Selected provider/model correction effect
   useEffect(() => {
     if (availableProviders.length > 0) {
-      const isCurrentProviderValid = availableProviders.some(p => p.name === provider);
+      const isCurrentProviderValid = availableProviders.some(p => p && p.name === provider);
       if (!isCurrentProviderValid) {
         const nextProvider = availableProviders[0].name;
         setProvider(nextProvider);
         const nextProviderObj = availableProviders[0];
-        const nextModels = nextProviderObj.models.filter(m => m.active && (isImageMode ? m.supports_image : m.supports_chat));
+        const nextModels = (nextProviderObj && Array.isArray(nextProviderObj.models))
+          ? nextProviderObj.models.filter(m => m && m.active && (isImageMode ? m.supports_image : m.supports_chat))
+          : [];
         if (nextModels.length > 0) {
           setModel(nextModels[0].id);
         }
       } else {
-        const models = currentProviderObj ? currentProviderObj.models.filter(m => m.active && (isImageMode ? m.supports_image : m.supports_chat)) : [];
-        if (models.length > 0 && !models.some(m => m.id === model)) {
+        const models = (currentProviderObj && Array.isArray(currentProviderObj.models))
+          ? currentProviderObj.models.filter(m => m && m.active && (isImageMode ? m.supports_image : m.supports_chat))
+          : [];
+        if (models.length > 0 && !models.some(m => m && m.id === model)) {
           setModel(models[0].id);
         }
       }
@@ -744,11 +748,11 @@ export default function Chatbot({ user }) {
 
             <PillSelect
               value={provider}
-              options={availableProviders.map(p => p.name)}
+              options={availableProviders.map(p => p?.name).filter(Boolean)}
               onChange={(p) => {
                 setProvider(p);
-                const pObj = availableProviders.find(x => x.name === p);
-                const models = pObj ? pObj.models.filter(m => m.active && (isImageMode ? m.supports_image : m.supports_chat)) : [];
+                const pObj = availableProviders.find(x => x && x.name === p);
+                const models = (pObj && Array.isArray(pObj.models)) ? pObj.models.filter(m => m && m.active && (isImageMode ? m.supports_image : m.supports_chat)) : [];
                 if (models.length > 0) {
                   setModel(models[0].id);
                 }
@@ -757,9 +761,9 @@ export default function Chatbot({ user }) {
             />
             <PillSelect
               value={model}
-              options={availableModels.map(m => m.id)}
+              options={availableModels.map(m => m?.id).filter(Boolean)}
               onChange={setModel}
-              optionLabel={(o) => o.split('/').pop()}
+              optionLabel={(o) => (o && typeof o === 'string') ? o.split('/').pop() : ''}
             />
           </div>
         </header>

@@ -314,6 +314,18 @@ async def post_message(req: ChatMessagePostRequest, current_user: User = Depends
 # PROVIDER & MODEL ENDPOINTS
 # ==========================================
 
+def sync_all_providers_bg():
+    from app.database import SessionLocal
+    from app.router_ai import sync_all_providers
+    import asyncio
+    db = SessionLocal()
+    try:
+        asyncio.run(sync_all_providers(db))
+    except Exception as e:
+        print(f"[BG-SYNC ERROR] Failed background sync: {e}")
+    finally:
+        db.close()
+
 @app.get("/api/models")
 async def get_models(background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Auto-refresh check: if there is no status, or if latest status is older than 24h
@@ -327,7 +339,7 @@ async def get_models(background_tasks: BackgroundTasks, db: Session = Depends(ge
             needs_refresh = True
             
     if needs_refresh:
-        background_tasks.add_task(sync_all_providers, db)
+        background_tasks.add_task(sync_all_providers_bg)
 
     providers_list = []
     statuses = {s.provider: s for s in db.query(ProviderStatus).all()}
@@ -350,7 +362,7 @@ async def get_models(background_tasks: BackgroundTasks, db: Session = Depends(ge
         if provider == "pollinations":
             enabled = True
         elif status:
-            enabled = status.api_key_configured
+            enabled = status.api_key_configured and status.working
         else:
             enabled = is_api_key_configured(provider)
             

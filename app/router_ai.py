@@ -88,6 +88,10 @@ async def sync_provider_models(provider: str, db: Session):
                     methods = m.get("supportedGenerationMethods", [])
                     if "generateContent" in methods:
                         model_id = m.get("name", "").replace("models/", "")
+                        model_id_lower = model_id.lower()
+                        exclude_terms = ["image", "tts", "clip", "computer-use", "robotics", "er-1.5", "er-1.6", "deep-research", "audio", "embedding", "vision", "bidi"]
+                        if any(term in model_id_lower for term in exclude_terms):
+                            continue
                         display_name = m.get("displayName", model_id)
                         models.append({
                             "id": model_id,
@@ -95,6 +99,14 @@ async def sync_provider_models(provider: str, db: Session):
                             "supports_chat": True,
                             "supports_image": False
                         })
+                # Verify Gemini key actually works for completions (detecting 429 quota/limit 0 issues)
+                if models:
+                    stable_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+                    test_model = next((m["id"] for m in models if m["id"] in stable_models), models[0]["id"])
+                    test_url = f"https://generativelanguage.googleapis.com/v1beta/models/{test_model}:generateContent?key={api_key}"
+                    test_payload = {"contents": [{"parts": [{"text": "Hello"}]}]}
+                    test_res = client.post(test_url, json=test_payload, timeout=5.0)
+                    test_res.raise_for_status()
         elif provider == "groq":
             api_key = API_KEYS.get("groq")
             url = "https://api.groq.com/openai/v1/models"
@@ -108,7 +120,9 @@ async def sync_provider_models(provider: str, db: Session):
                 data = response.json()
                 for m in data.get("data", []):
                     model_id = m.get("id", "")
-                    if "gemma2-9b-it" in model_id or "whisper" in model_id or "guard" in model_id:
+                    model_id_lower = model_id.lower()
+                    exclude_terms = ["guard", "whisper", "safeguard"]
+                    if any(term in model_id_lower for term in exclude_terms):
                         continue
                     models.append({
                         "id": model_id,
@@ -116,6 +130,18 @@ async def sync_provider_models(provider: str, db: Session):
                         "supports_chat": True,
                         "supports_image": False
                     })
+                # Verify Groq key actually works for completions
+                if models:
+                    stable_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "groq/compound-mini"]
+                    test_model = next((m["id"] for m in models if m["id"] in stable_models), models[0]["id"])
+                    test_url = "https://api.groq.com/openai/v1/chat/completions"
+                    test_payload = {
+                        "model": test_model,
+                        "messages": [{"role": "user", "content": "H"}],
+                        "max_tokens": 1
+                    }
+                    test_res = client.post(test_url, json=test_payload, headers=headers, timeout=5.0)
+                    test_res.raise_for_status()
         elif provider == "openrouter":
             api_key = API_KEYS.get("openrouter")
             url = "https://openrouter.ai/api/v1/models"
@@ -131,6 +157,9 @@ async def sync_provider_models(provider: str, db: Session):
                 data = response.json()
                 for m in data.get("data", []):
                     model_id = m.get("id", "")
+                    model_id_lower = model_id.lower()
+                    if ":free" not in model_id_lower:
+                        continue
                     display_name = m.get("name", model_id)
                     architecture = m.get("architecture", {})
                     modality = architecture.get("modality", "") if architecture else ""
@@ -149,6 +178,18 @@ async def sync_provider_models(provider: str, db: Session):
                             "supports_chat": True,
                             "supports_image": False
                         })
+                # Verify OpenRouter key actually works and is not rate-limited/out of quota
+                if models:
+                    stable_models = ["meta-llama/llama-3.2-3b-instruct:free", "meta-llama/llama-3.3-70b-instruct:free"]
+                    test_model = next((m["id"] for m in models if m["id"] in stable_models), models[0]["id"])
+                    test_url = "https://openrouter.ai/api/v1/chat/completions"
+                    test_payload = {
+                        "model": test_model,
+                        "messages": [{"role": "user", "content": "H"}],
+                        "max_tokens": 1
+                    }
+                    test_res = client.post(test_url, json=test_payload, headers=headers, timeout=5.0)
+                    test_res.raise_for_status()
         elif provider == "cerebras":
             api_key = API_KEYS.get("cerebras")
             url = "https://api.cerebras.ai/v1/models"
@@ -168,6 +209,18 @@ async def sync_provider_models(provider: str, db: Session):
                         "supports_chat": True,
                         "supports_image": False
                     })
+                # Verify Cerebras key actually works for completions (since list-models succeeds with bad keys)
+                if models:
+                    stable_models = ["llama3.1-8b", "llama3.1-70b"]
+                    test_model = next((m["id"] for m in models if m["id"] in stable_models), models[0]["id"])
+                    test_url = "https://api.cerebras.ai/v1/chat/completions"
+                    test_payload = {
+                        "model": test_model,
+                        "messages": [{"role": "user", "content": "H"}],
+                        "max_tokens": 1
+                    }
+                    test_res = client.post(test_url, json=test_payload, headers=headers, timeout=5.0)
+                    test_res.raise_for_status()
         elif provider == "mistral":
             api_key = API_KEYS.get("mistral")
             url = "https://api.mistral.ai/v1/models"
@@ -181,7 +234,9 @@ async def sync_provider_models(provider: str, db: Session):
                 data = response.json()
                 for m in data.get("data", []):
                     model_id = m.get("id", "")
-                    if "embed" in model_id or "moderation" in model_id:
+                    model_id_lower = model_id.lower()
+                    exclude_terms = ["ocr", "tts", "realtime", "transcribe", "vibe", "embed", "moderation", "vision"]
+                    if any(term in model_id_lower for term in exclude_terms):
                         continue
                     models.append({
                         "id": model_id,
@@ -189,6 +244,18 @@ async def sync_provider_models(provider: str, db: Session):
                         "supports_chat": True,
                         "supports_image": False
                     })
+                # Verify Mistral key actually works for completions
+                if models:
+                    stable_models = ["open-mistral-nemo", "mistral-tiny"]
+                    test_model = next((m["id"] for m in models if m["id"] in stable_models), models[0]["id"])
+                    test_url = "https://api.mistral.ai/v1/chat/completions"
+                    test_payload = {
+                        "model": test_model,
+                        "messages": [{"role": "user", "content": "H"}],
+                        "max_tokens": 1
+                    }
+                    test_res = client.post(test_url, json=test_payload, headers=headers, timeout=5.0)
+                    test_res.raise_for_status()
 
         # Save to database
         db.query(ProviderModel).filter(ProviderModel.provider == provider).delete()
